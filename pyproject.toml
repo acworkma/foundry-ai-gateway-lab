@@ -1,11 +1,11 @@
 [project]
 name = "foundryqs"
 version = "0.1.0"
-description = "Add your description here"
+description = "A compact Azure AI Foundry quickstart for creating and testing prompt agents and workflows."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
-    "azure-ai-projects>=2.0.0b3",
+    "azure-ai-projects>=2.0.0,<3.0.0",
     "azure-identity>=1.25.1",
     "openai>=2.15.0",
     "python-dotenv>=1.2.1",

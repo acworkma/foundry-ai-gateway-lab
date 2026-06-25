@@ -1,25 +1,18 @@
 import os
-from dotenv import load_dotenv
-from azure.identity import DefaultAzureCredential
-from azure.ai.projects import AIProjectClient
-from azure.ai.projects.models import WorkflowAgentDefinition
 
-load_dotenv()
+from foundry_foundation import create_agent_version, get_project_client, invoke_agent
+from azure.ai.projects.models import WorkflowAgentDefinition
 
 # Workflow agent configuration
 WORKFLOW_AGENT_NAME = "story-teller-multi-agent-workflow"
 MODEL_DEPLOYMENT_NAME = "gpt-5.2"
 
-print(f"Using PROJECT_ENDPOINT: {os.environ['PROJECT_ENDPOINT']}")
-print(f"Creating workflow: {WORKFLOW_AGENT_NAME}")
 
-project_client = AIProjectClient(
-    endpoint=os.environ["PROJECT_ENDPOINT"],
-    credential=DefaultAzureCredential(),
-)
+def main() -> None:
+    project_client = get_project_client()
+    print(f"Using MODEL_DEPLOYMENT_NAME: {MODEL_DEPLOYMENT_NAME}")
 
-# Define the multi-agent workflow using the exact working YAML format
-workflow_definition = """
+    workflow_definition = """
 kind: workflow
 trigger:
   kind: OnConversationStart
@@ -73,40 +66,28 @@ trigger:
 name: story-teller-multi-agent-workflow
 """
 
-# Create NEW Foundry workflow agent with YAML definition
-workflow_agent = project_client.agents.create_version(
-    agent_name=WORKFLOW_AGENT_NAME,
-    definition=WorkflowAgentDefinition(
-        workflow=workflow_definition
-    ),
-)
+    workflow_agent = create_agent_version(
+        project_client,
+        agent_name=WORKFLOW_AGENT_NAME,
+        definition=WorkflowAgentDefinition(workflow=workflow_definition),
+    )
+    print("✅ Foundry Workflow Agent created!")
+    print(f"   ID: {workflow_agent.id}")
+    print(f"   Name: {workflow_agent.name}")
+    print(f"   Version: {workflow_agent.version}")
 
-print(f"✅ NEW Foundry Workflow Agent created!")
-print(f"   ID: {workflow_agent.id}")
-print(f"   Name: {workflow_agent.name}")
-print(f"   Version: {workflow_agent.version}")
+    openai_client = project_client.get_openai_client()
+    conversation, response = invoke_agent(
+        openai_client,
+        agent_name=workflow_agent.name,
+        input_text="Tell me a story about a time-traveling librarian who discovers a book that writes itself",
+    )
+    print(f"Created workflow conversation: {conversation.id}")
+    print("\n🎯 Workflow Response:")
+    print("=" * 60)
+    print(response.output_text)
+    print("=" * 60)
 
-# Test the workflow
-openai_client = project_client.get_openai_client()
 
-# Create conversation for the workflow
-workflow_conversation = openai_client.conversations.create()
-print(f"Created workflow conversation: {workflow_conversation.id}")
-
-# Trigger the multi-agent workflow
-test_input = "Tell me a story about a time-traveling librarian who discovers a book that writes itself"
-
-print(f"\n🚀 Testing workflow with: '{test_input}'")
-
-response = openai_client.responses.create(
-    conversation=workflow_conversation.id,
-    extra_body={"agent": {"name": workflow_agent.name, "type": "agent_reference"}},
-    input=test_input
-)
-
-print(f"\n🎯 Workflow Response:")
-print("=" * 60)
-print(response.output_text)
-print("=" * 60)
-
-print(f"\n✨ Visual workflow '{WORKFLOW_AGENT_NAME}' should now appear in the Microsoft Foundry portal's Workflows section!")
+if __name__ == "__main__":
+    main()

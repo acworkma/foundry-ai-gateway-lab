@@ -1,90 +1,72 @@
-# Azure AI Foundry Setup Guide
+# Azure AI Foundry setup guide
 
-This guide covers setting up Azure resources and configuration for the NEW Foundry Agent API.
+This guide covers the environment and permissions needed for the current agent examples in this repo.
 
-## Azure Resource Requirements
+## Azure resource requirements
 
-### 1. Azure AI Foundry Project
+You need an Azure AI Foundry project with:
+- a project endpoint in the form `https://{resource-name}.services.ai.azure.com/api/projects/{project-name}`
+- permissions to create agents and access the target model deployments
+- at least one deployed model available to the project
 
-You need an existing Azure AI Foundry project with:
-- **Project endpoint** in format: `https://{resource-name}.services.ai.azure.com/api/projects/{project-name}`
-- **Proper permissions** for agent creation
-- **Access to deployed models**
+## Model deployment requirements
 
-### 2. Model Deployment
+The scripts assume the deployment names below unless you update the constants:
+- `DeepSeek-V3.2`
+- `gpt-5.2`
+- `Mistral-Large-3`
 
-Ensure you have a deployed model accessible via:
-- **Deployment name** (e.g., "DeepSeek-V3.2", "gpt-4o", etc.)
-- **Model must be accessible** from your Foundry project
-- **Deployment name must match** the value in `MODEL_DEPLOYMENT_NAME`
+Make sure the deployment names in your environment match the values used by the scripts.
 
-### 3. Authentication Setup
+## Authentication setup
 
-This project uses `DefaultAzureCredential` which supports:
+The examples use `DefaultAzureCredential`, which works well for local development with Azure CLI:
 
-**Azure CLI (Recommended for development):**
 ```bash
 az login
+az account set --subscription "your-subscription-id"
 ```
 
-**Managed Identity (For production):**
-- Configure system-assigned or user-assigned managed identity
-- Ensure identity has access to your Foundry project
+For production, you can also use a managed identity or service principal.
 
-**Service Principal (Alternative):**
+## Configuration details
+
+Create a `.env` file from the template:
+
 ```bash
-export AZURE_CLIENT_ID="your-client-id"
-export AZURE_CLIENT_SECRET="your-client-secret" 
-export AZURE_TENANT_ID="your-tenant-id"
+cp .env.example .env
 ```
 
-## Configuration Details
+Set the required values:
 
-### Project Endpoint Format
-```
-https://{resource-name}.services.ai.azure.com/api/projects/{project-name}
-```
-
-**Example:**
-```
-https://foundry-acw.services.ai.azure.com/api/projects/proj-acw
+```bash
+PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/api/projects/your-project
+MODEL_DEPLOYMENT_NAME=your-deployment-name
 ```
 
-### Required Permissions
+## Verification steps
 
-Your Azure identity needs:
-- **Cognitive Services Contributor** role on the AI Foundry project
-- **Read access** to deployed models
-- **Agent creation permissions** in Foundry portal
-
-## Verification Steps
-
-1. **Test authentication:**
+1. Confirm authentication:
    ```bash
    uv run python -c "from azure.identity import DefaultAzureCredential; DefaultAzureCredential().get_token('https://management.azure.com/.default')"
    ```
 
-2. **Verify project access:**
+2. Verify project access:
    ```bash
    uv run python -c "from azure.ai.projects import AIProjectClient; from azure.identity import DefaultAzureCredential; client = AIProjectClient(endpoint='YOUR_ENDPOINT', credential=DefaultAzureCredential())"
    ```
 
-3. **Check model deployment:**
-   - Log into Azure AI Foundry portal
-   - Navigate to your project
-   - Verify model deployment is active and accessible
+3. Check the deployment name in the Azure AI Foundry portal and update the script constants or `.env` if needed.
 
-## NEW Foundry vs Classic Agents
+## Current SDK pattern
 
-This project specifically uses:
-- **NEW Foundry Agent API** via `azure-ai-projects>=2.0.0b3` (**beta - requires --pre flag**)
-- **Agent creation** with `client.agents.create_version()`
-- **Responses API** with agent references
-- **Portal integration** - agents appear in Foundry dashboard
+This repo uses the current Foundry SDK pattern:
+- `AIProjectClient`
+- `project.get_openai_client()`
+- `responses.create()` with agent references
 
-**Installation requirement:**
+Install the SDK with:
+
 ```bash
-uv add azure-ai-projects --pre
+uv add azure-ai-projects
 ```
-
-**Note:** This is different from classic Azure OpenAI assistant creation patterns.

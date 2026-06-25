@@ -1,79 +1,67 @@
 # Azure AI Foundry Quickstart
 
-A quickstart project for creating and managing AI agents using Microsoft Azure AI Foundry (NEW Foundry Agent API).
+This repository demonstrates a modern Azure AI Foundry quickstart using the current `azure-ai-projects` SDK and the new Foundry agent experience. It keeps the original storytelling demos while moving the implementation behind a shared foundation module so it is easier to extend later.
 
 ## Prerequisites
 
-- **Python 3.12+** (specified in `.python-version`)
-- **Azure CLI** installed and authenticated
-- **Azure AI Foundry project** with proper permissions
-- **Deployed model** accessible via deployment name
+- Python 3.11+
+- Azure CLI installed and authenticated
+- An Azure AI Foundry project with access to deployed models
+- A model deployment name that matches the scripts you want to run
 
-## Quick Setup
+## Quick setup
 
-1. **Install dependencies using uv:**
+1. Install dependencies with uv:
    ```bash
-   # Install beta versions (required for NEW Foundry Agent API)
    uv sync
-   
-   # Or manually add the beta dependency:
-   uv add azure-ai-projects --pre
    ```
 
-2. **Configure environment variables:**
+2. Configure environment variables:
    ```bash
    cp .env.example .env
-   # Edit .env with your Azure AI Foundry project details
    ```
+   Fill in your `PROJECT_ENDPOINT` and any deployment names you plan to use.
 
-3. **Run an agent creation script:**
+3. Run the examples:
    ```bash
-   # Create individual agents
    uv run python agent-deepseek.py
    uv run python agent-gpt.py
    uv run python agent-mistral.py
-   
-   # Create and run multi-agent coordinator workflow
    uv run python agent-coordinator.py
+   uv run python workflow-agent.py
    ```
 
-## Project Structure
+## Project structure
 
-- `agent-coordinator.py` - Multi-agent orchestrator with workflow (NEW)
-- `agent-deepseek.py` - DeepSeek-V3.2 agent creation
-- `agent-gpt.py` - GPT-5.2 agent creation  
-- `agent-mistral.py` - Mistral Large 3 agent creation
-- `agent.py` - Original agent creation script (environment-driven)
-- `main.py` - Direct agent creation example (hardcoded config)
-- `quickstart.py` - Basic placeholder script
-- `pyproject.toml` - Project dependencies and configuration
-- `uv.lock` - Locked dependency versions
-- `.env.example` - Environment variable template
+- `agent-deepseek.py` / `agent-gpt.py` / `agent-mistral.py` - Prompt agent demos for different model deployments
+- `agent-coordinator.py` - Multi-agent orchestration example
+- `workflow-agent.py` - Workflow-style agent example
+- `foundry_foundation.py` - Shared client setup, agent creation, and agent invocation helpers
+- `pyproject.toml` / `uv.lock` - Dependency configuration
+- `.env.example` - Environment template
 
-## Key Dependencies
+## Key dependencies
 
-- **azure-ai-projects** `>=2.0.0b3` - NEW Foundry Agent creation (**beta - requires --pre flag**)
-- **azure-identity** `>=1.25.1` - Azure authentication
-- **openai** `>=2.15.0` - Responses API integration
-- **python-dotenv** `>=1.2.1` - Environment variable management
+- `azure-ai-projects>=2.0.0,<3.0.0`
+- `azure-identity>=1.25.1`
+- `openai>=2.15.0`
+- `python-dotenv>=1.2.1`
 
-## Important Notes
+## Notes
 
-- This project uses **beta versions** of Azure AI Projects SDK (**requires --pre flag**)
-- Agents are created using the **NEW Foundry Agent API** (not classic)
-- Created agents appear in the Microsoft Foundry portal
-- Uses the new **Responses API** with agent references
-- **Critical:** Must use `uv add azure-ai-projects --pre` to install beta versions
+- The scripts use `AIProjectClient`, `get_openai_client()`, and `responses.create()` with agent references.
+- The repo no longer assumes prerelease-only tooling; the setup is written for the current SDK experience.
+- Agents created by the examples should appear in the Azure AI Foundry portal when your environment is configured correctly.
 
-## Next Steps
+## Next steps
 
-- See [AZURE_SETUP.md](AZURE_SETUP.md) for Azure resource configuration
-- See [USAGE.md](USAGE.md) for agent creation patterns
+- See [AZURE_SETUP.md](AZURE_SETUP.md) for environment and permission guidance
+- See [USAGE.md](USAGE.md) for the repo’s supported usage patterns
 - See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues
 
 ## Authentication
 
-This project uses `DefaultAzureCredential` for authentication. Ensure you're logged in via Azure CLI:
+This project uses `DefaultAzureCredential`. Sign in with Azure CLI before running the scripts:
 
 ```bash
 az login

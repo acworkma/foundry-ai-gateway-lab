@@ -11,3 +11,12 @@ wheels/
 
 # Environment files
 .env
+.env.*
+!.env.example
+
+# Local secrets / credentials
+*.pem
+*.key
+*.pfx
+*.crt
+*.cer

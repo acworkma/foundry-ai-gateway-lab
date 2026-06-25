@@ -1,86 +1,77 @@
 # GitHub Copilot Instructions
 
 ## Project Context
-This is an Azure AI Foundry project for creating agents using the NEW Foundry Agent API. The project demonstrates how to create multiple agents with different language models.
-
+This is an Azure AI Foundry project for creating agents using the current Foundry agent experience. The project demonstrates how to create multiple agents with different language models while keeping the demos reusable.
 
 ### Dependencies and Installation
-- Use `azure-ai-projects>=2.0.0b3` (beta version - **requires --pre flag**)
+- Use the current `azure-ai-projects` package release
 - Always use `uv` package manager for dependency management
-- Install beta versions with: `uv add azure-ai-projects --pre`
+- Install dependencies with `uv sync`
 - Load environment variables with `python-dotenv` and `load_dotenv()`
 
 ### Authentication
 - Use `DefaultAzureCredential` for Azure authentication
 - Requires `PROJECT_ENDPOINT` environment variable
-- No API keys needed - uses Azure identity
+- No API keys are required for local development when Azure identity is available
 
-### NEW Microsoft Foundry SDK Patterns (CRITICAL)
-- **ALWAYS use NEW Foundry patterns** - NOT classic OpenAI assistant patterns
-- Use `AIProjectClient` from `azure-ai-projects>=2.0.0b3` 
-- Get OpenAI client with `project.get_openai_client()` - NOT direct OpenAI client
-- Use `openai_client.responses.create()` - NOT `chat.completions.create()`
-- Use NEW Foundry Agent Service - NOT classic assistants API
+### Current Microsoft Foundry SDK Patterns
+- Use `AIProjectClient` from `azure-ai-projects`
+- Get an OpenAI client with `project.get_openai_client()`
+- Use `openai_client.responses.create()` for agent calls
+- Use the Foundry agent service rather than classic assistant workflows
 
-### Correct NEW Foundry Patterns
+### Correct Foundry Patterns
 ```python
-# Correct project setup
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
+
 project = AIProjectClient(endpoint=os.environ["PROJECT_ENDPOINT"], credential=DefaultAzureCredential())
 
-# Correct agent creation
 agent = project.agents.create_version(
     agent_name=AGENT_NAME,
     definition=PromptAgentDefinition(
         model=MODEL_DEPLOYMENT_NAME,
-        instructions="You are a storytelling agent. You craft engaging one-line stories based on user prompts and context.",
+        instructions="You are a storytelling agent.",
     ),
 )
 
-# Correct OpenAI client (from project)
 openai_client = project.get_openai_client()
-
-# Correct API calls - use responses.create()
 response = openai_client.responses.create(
     conversation=conversation.id,
     extra_body={"agent": {"name": agent.name, "type": "agent_reference"}},
-    input="Your prompt here"
+    input="Your prompt here",
 )
 ```
 
-### AVOID These Classic Patterns
-- Do NOT use direct `from openai import OpenAI`
-- Do NOT use `client.chat.completions.create()`
-- Do NOT use `client.beta.assistants.create()`
-- Do NOT use classic OpenAI assistant workflows
-- Do NOT use `openai_client.beta.threads.runs.create()`
-
+### Avoid These Classic Patterns
+- Do not use direct `from openai import OpenAI`
+- Do not use `client.chat.completions.create()`
+- Do not use classic assistant workflows
+- Do not use `openai_client.beta.threads.runs.create()`
 
 ## File Naming Conventions
-- Agent files: `agent-{model}.py` (e.g., `agent-deepseek.py`, `agent-gpt.py`)
-- Agent names should match file names (e.g., "agent-mistral")
+- Agent files: `agent-{model}.py` (for example `agent-deepseek.py`)
+- Agent names should match file names where practical
 - Use hardcoded model deployment names in each agent file
-- Environment configuration: `.env` file (excluded from git)
+- Environment configuration lives in `.env`
 
 ## Model-Specific Configurations
-- **DeepSeek**: `MODEL_DEPLOYMENT_NAME = "DeepSeek-V3.2"`
-- **GPT**: `MODEL_DEPLOYMENT_NAME = "gpt-5.2"`
-- **Mistral**: `MODEL_DEPLOYMENT_NAME = "Mistral-Large-3"`
+- DeepSeek: `MODEL_DEPLOYMENT_NAME = "DeepSeek-V3.2"`
+- GPT: `MODEL_DEPLOYMENT_NAME = "gpt-5.2"`
+- Mistral: `MODEL_DEPLOYMENT_NAME = "Mistral-Large-3"`
 
 ## Environment Variables
-Required in `.env` file:
+Required in `.env`:
 - `PROJECT_ENDPOINT` - Azure AI Foundry project endpoint
-- Optional: `AGENT_NAME`, `MODEL_DEPLOYMENT_NAME` (for environment-driven agents)
+- Optional: `MODEL_DEPLOYMENT_NAME`
 
 ## Documentation Standards
-- Update README.md for new agent patterns
-- Update USAGE.md for new API examples
-- Add troubleshooting steps for new issues
-- Emphasize beta version requirements and --pre flag usage
+- Update `README.md` for new entry points or usage changes
+- Update `USAGE.md` for new API examples
+- Add troubleshooting guidance for new issues
+- Keep the docs aligned with the current SDK experience rather than prerelease assumptions
 
 ## Important Notes
-- **CRITICAL**: Always use NEW Foundry Agent API patterns, NOT classic OpenAI assistants
-- Agents appear in Microsoft Foundry portal after creation
-- Beta APIs may have breaking changes - always test thoroughly
-- Use `uv sync` to install dependencies from lockfile
+- Use the current Foundry agent API patterns rather than classic assistant patterns
+- Agents appear in the Azure AI Foundry portal after creation
+- Test new SDK changes in a development environment before relying on them
