@@ -14,6 +14,9 @@ param foundryName string = 'foundry-acw'
 @description('Foundry Azure AI Model Inference base URL (serves all models).')
 param inferenceBaseUrl string = 'https://foundry-acw.services.ai.azure.com/models'
 
+@description('Azure AI Content Safety endpoint (reuses the foundry-acw account).')
+param contentSafetyUrl string = 'https://foundry-acw.cognitiveservices.azure.com'
+
 @description('API path suffix exposed by the gateway.')
 param apiPath string = 'storyteller'
 
@@ -53,6 +56,24 @@ resource backend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' =
     description: 'Foundry Azure AI Model Inference (gpt-5.2, DeepSeek, Mistral)'
     url: inferenceBaseUrl
     protocol: 'http'
+  }
+}
+
+// Azure AI Content Safety backend — reuses the foundry-acw content-safety
+// endpoint. Backend-level managed identity (the APIM MI already holds Cognitive
+// Services User on foundry-acw) authenticates the screening calls.
+resource contentSafetyBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
+  parent: apim
+  name: 'content-safety'
+  properties: {
+    description: 'Azure AI Content Safety (foundry-acw)'
+    url: contentSafetyUrl
+    protocol: 'http'
+    credentials: {
+      managedIdentity: {
+        resource: 'https://cognitiveservices.azure.com'
+      }
+    }
   }
 }
 
@@ -123,6 +144,40 @@ resource throttledApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-
   dependsOn: [ backend, backendFragment ]
 }
 
+// Content-safety variant — same backend, screens prompts via Azure AI Content Safety.
+resource safetyApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
+  parent: apim
+  name: 'storyteller-llm-safety'
+  properties: {
+    displayName: 'Storyteller LLM (content-safety)'
+    description: 'Same Foundry backend with Azure AI Content Safety screening, for the llm-content-safety demo.'
+    path: '${apiPath}-safety'
+    protocols: [ 'https' ]
+    subscriptionRequired: true
+  }
+}
+
+resource safetyChatCompletions 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: safetyApi
+  name: 'chat-completions'
+  properties: {
+    displayName: 'Chat Completions'
+    method: 'POST'
+    urlTemplate: '/chat/completions'
+    description: 'OpenAI chat completions, content-safety screened.'
+  }
+}
+
+resource safetyApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: safetyApi
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/content-safety.xml')
+  }
+  dependsOn: [ backend, backendFragment, contentSafetyBackend ]
+}
+
 // Dedicated product + subscription so demo clients have a stable subscription key.
 resource product 'Microsoft.ApiManagement/service/products@2023-09-01-preview' = {
   parent: apim
@@ -144,6 +199,11 @@ resource productApi 'Microsoft.ApiManagement/service/products/apis@2023-09-01-pr
 resource productThrottledApi 'Microsoft.ApiManagement/service/products/apis@2023-09-01-preview' = {
   parent: product
   name: throttledApi.name
+}
+
+resource productSafetyApi 'Microsoft.ApiManagement/service/products/apis@2023-09-01-preview' = {
+  parent: product
+  name: safetyApi.name
 }
 
 resource subscription 'Microsoft.ApiManagement/service/subscriptions@2023-09-01-preview' = {

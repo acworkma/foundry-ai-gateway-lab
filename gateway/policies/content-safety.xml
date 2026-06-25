@@ -1,0 +1,30 @@
+<!--
+  Content-safety Storyteller API policy (path: /storyteller-safety).
+  Demonstrates llm-content-safety: every prompt is screened by Azure AI Content
+  Safety (reusing the foundry-acw content-safety endpoint) before it reaches the
+  model. Harmful prompts (Hate/Violence/SelfHarm/Sexual >= severity 4) and prompt
+  attacks are blocked with a 403; benign storyteller prompts pass through.
+-->
+<policies>
+    <inbound>
+        <base />
+        <llm-content-safety backend-id="content-safety" shield-prompt="true">
+            <categories output-type="EightSeverityLevels">
+                <category name="Hate" threshold="4" />
+                <category name="Violence" threshold="4" />
+                <category name="SelfHarm" threshold="4" />
+                <category name="Sexual" threshold="4" />
+            </categories>
+        </llm-content-safety>
+        <include-fragment fragment-id="storyteller-backend" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
