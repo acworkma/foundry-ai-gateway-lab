@@ -1,0 +1,32 @@
+<!--
+  Semantic-cache Storyteller API policy (path: /storyteller-cache).
+  Demonstrates llm-semantic-cache-lookup/store: prompts are embedded
+  (text-embedding-3-small) and matched by vector similarity against an external
+  Azure Managed Redis (RediSearch) cache. Semantically similar prompts return the
+  cached completion instantly with zero backend tokens. Cache is partitioned per
+  subscription; a rate-limit guards the backend if the cache is unavailable.
+-->
+<policies>
+    <inbound>
+        <base />
+        <llm-semantic-cache-lookup
+            score-threshold="0.2"
+            embeddings-backend-id="embeddings-backend"
+            embeddings-backend-auth="system-assigned"
+            ignore-system-messages="true">
+            <vary-by>@(context.Subscription.Id)</vary-by>
+        </llm-semantic-cache-lookup>
+        <rate-limit calls="20" renewal-period="60" />
+        <include-fragment fragment-id="storyteller-backend" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <llm-semantic-cache-store duration="600" />
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

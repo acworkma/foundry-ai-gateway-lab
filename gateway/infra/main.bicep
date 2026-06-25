@@ -27,6 +27,19 @@ param appInsightsId string = '/subscriptions/80e91cef-e379-45a7-b8bf-ebfffea647d
 @secure()
 param appInsightsInstrumentationKey string
 
+@description('Embeddings API URL (no query params) used for semantic cache vectors.')
+param embeddingsUrl string = 'https://foundry-acw.openai.azure.com/openai/deployments/text-embedding-3-small/embeddings'
+
+@description('Azure Managed Redis host name for the external cache. Empty = skip semantic cache wiring.')
+param redisHostName string = ''
+
+@description('Azure Managed Redis access key.')
+@secure()
+param redisAccessKey string = ''
+
+@description('Azure Managed Redis SSL port.')
+param redisPort int = 10000
+
 resource apim 'Microsoft.ApiManagement/service@2023-09-01-preview' existing = {
   name: apimName
 }
@@ -68,6 +81,22 @@ resource contentSafetyBackend 'Microsoft.ApiManagement/service/backends@2023-09-
   properties: {
     description: 'Azure AI Content Safety (foundry-acw)'
     url: contentSafetyUrl
+    protocol: 'http'
+    credentials: {
+      managedIdentity: {
+        resource: 'https://cognitiveservices.azure.com'
+      }
+    }
+  }
+}
+
+// Embeddings backend — used by llm-semantic-cache-lookup to vectorize prompts.
+resource embeddingsBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
+  parent: apim
+  name: 'embeddings-backend'
+  properties: {
+    description: 'text-embedding-3-small (foundry-acw) for semantic cache vectors'
+    url: embeddingsUrl
     protocol: 'http'
     credentials: {
       managedIdentity: {
@@ -178,6 +207,51 @@ resource safetyApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-
   dependsOn: [ backend, backendFragment, contentSafetyBackend ]
 }
 
+// Semantic-cache variant — same backend, adds vector cache lookup/store.
+resource cacheApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
+  parent: apim
+  name: 'storyteller-llm-cache'
+  properties: {
+    displayName: 'Storyteller LLM (semantic cache)'
+    description: 'Same Foundry backend with semantic caching, for the llm-semantic-cache demo.'
+    path: '${apiPath}-cache'
+    protocols: [ 'https' ]
+    subscriptionRequired: true
+  }
+}
+
+resource cacheChatCompletions 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: cacheApi
+  name: 'chat-completions'
+  properties: {
+    displayName: 'Chat Completions'
+    method: 'POST'
+    urlTemplate: '/chat/completions'
+    description: 'OpenAI chat completions, semantically cached.'
+  }
+}
+
+resource cacheApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: cacheApi
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/semantic-cache.xml')
+  }
+  dependsOn: [ backend, backendFragment, embeddingsBackend ]
+}
+
+// External Redis cache binding — only created once Redis host/key are supplied.
+resource externalCache 'Microsoft.ApiManagement/service/caches@2023-09-01-preview' = if (!empty(redisHostName)) {
+  parent: apim
+  name: 'default'
+  properties: {
+    description: 'Azure Managed Redis (RediSearch) for semantic caching'
+    connectionString: '${redisHostName}:${redisPort},password=${redisAccessKey},ssl=True,abortConnect=False'
+    useFromLocation: 'default'
+  }
+}
+
 // Dedicated product + subscription so demo clients have a stable subscription key.
 resource product 'Microsoft.ApiManagement/service/products@2023-09-01-preview' = {
   parent: apim
@@ -204,6 +278,11 @@ resource productThrottledApi 'Microsoft.ApiManagement/service/products/apis@2023
 resource productSafetyApi 'Microsoft.ApiManagement/service/products/apis@2023-09-01-preview' = {
   parent: product
   name: safetyApi.name
+}
+
+resource productCacheApi 'Microsoft.ApiManagement/service/products/apis@2023-09-01-preview' = {
+  parent: product
+  name: cacheApi.name
 }
 
 resource subscription 'Microsoft.ApiManagement/service/subscriptions@2023-09-01-preview' = {
