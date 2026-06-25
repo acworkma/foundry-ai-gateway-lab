@@ -1,13 +1,20 @@
-from foundry_foundation import create_agent_version, get_project_client, invoke_agent
+from foundry_foundation import create_agent_version, get_project_client
 from azure.ai.projects.models import WorkflowAgentDefinition
 
 # Workflow agent configuration
 WORKFLOW_AGENT_NAME = "StoryTellerGenerator"
 MODEL_DEPLOYMENT_NAME = "gpt-5.2"
 
-# Workflow definition mirrors the StoryTellerGenerator agent deployed in the
-# Foundry project: it fans the user prompt out to the GPT, DeepSeek, and Mistral
-# prompt agents and streams each reply back as it arrives.
+# Workflow definition for the StoryTellerGenerator agent: it fans the user
+# prompt out to the GPT, DeepSeek, and Mistral prompt agents and streams each
+# reply back as it arrives.
+#
+# Each agent reply is emitted with `autoSend: true` so the real model output
+# streams directly to the caller. A plain-text SendActivity label precedes each
+# agent so the three replies are easy to tell apart. (Power Fx expression
+# activities such as `="**GPT:**" & Last(Local.GptReply).Text` are NOT evaluated
+# by the current workflow runtime -- they stream back as the raw formula text --
+# so we rely on autoSend plus literal labels instead.)
 WORKFLOW_DEFINITION = """
 kind: workflow
 trigger:
@@ -20,7 +27,10 @@ trigger:
       value: =UserMessage(System.LastMessageText)
     - kind: SendActivity
       id: send_activity_progress
-      activity: Sending your prompt to GPT, DeepSeek, and Mistral...
+      activity: "Sending your prompt to GPT, DeepSeek, and Mistral..."
+    - kind: SendActivity
+      id: send_activity_label_gpt
+      activity: "**GPT**"
     - kind: InvokeAzureAgent
       id: gpt_agent
       description: Invoke the GPT agent
@@ -31,10 +41,10 @@ trigger:
         messages: =Local.UserPrompt
       output:
         messages: Local.GptReply
-        autoSend: false
+        autoSend: true
     - kind: SendActivity
-      id: send_activity_gpt
-      activity: ="**GPT:**\\n" & Last(Local.GptReply).Text
+      id: send_activity_label_deepseek
+      activity: "**DeepSeek**"
     - kind: InvokeAzureAgent
       id: deepseek_agent
       description: Invoke the DeepSeek agent
@@ -45,10 +55,10 @@ trigger:
         messages: =Local.UserPrompt
       output:
         messages: Local.DeepseekReply
-        autoSend: false
+        autoSend: true
     - kind: SendActivity
-      id: send_activity_deepseek
-      activity: ="**DeepSeek:**\\n" & Last(Local.DeepseekReply).Text
+      id: send_activity_label_mistral
+      activity: "**Mistral**"
     - kind: InvokeAzureAgent
       id: mistral_agent
       description: Invoke the Mistral agent
@@ -59,12 +69,38 @@ trigger:
         messages: =Local.UserPrompt
       output:
         messages: Local.MistralReply
-        autoSend: false
-    - kind: SendActivity
-      id: send_activity_mistral
-      activity: ="**Mistral:**\\n" & Last(Local.MistralReply).Text
+        autoSend: true
 name: StoryTellerGenerator
 """
+
+
+def stream_workflow(openai_client, *, agent_name, input_text):
+    """Stream a workflow response, separating each emitted message block.
+
+    The workflow emits the progress note, each agent label, and each agent
+    reply as distinct output items. We insert a blank line whenever a new item
+    starts so the streamed output stays readable.
+    """
+    conversation = openai_client.conversations.create()
+    stream = openai_client.responses.create(
+        conversation=conversation.id,
+        extra_body={"agent_reference": {"name": agent_name, "type": "agent_reference"}},
+        input=input_text,
+        stream=True,
+    )
+
+    current_item = None
+    for event in stream:
+        if getattr(event, "type", "") != "response.output_text.delta":
+            continue
+        item_id = getattr(event, "item_id", None)
+        if item_id != current_item:
+            if current_item is not None:
+                print("\n")
+            current_item = item_id
+        print(getattr(event, "delta", "") or "", end="", flush=True)
+    print()
+    return conversation
 
 
 def main() -> None:
@@ -84,16 +120,15 @@ def main() -> None:
     print(f"   Version: {workflow_agent.version}")
 
     openai_client = project_client.get_openai_client()
-    conversation, response = invoke_agent(
+    print("\n🎯 StoryTellerGenerator Response:")
+    print("=" * 60)
+    conversation = stream_workflow(
         openai_client,
         agent_name=workflow_agent.name,
         input_text="Tell me a story about a time-traveling librarian who discovers a book that writes itself",
     )
-    print(f"Created workflow conversation: {conversation.id}")
-    print("\n🎯 StoryTellerGenerator Response:")
     print("=" * 60)
-    print(response.output_text)
-    print("=" * 60)
+    print(f"Workflow conversation: {conversation.id}")
 
 
 if __name__ == "__main__":
