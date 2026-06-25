@@ -27,6 +27,9 @@ param appInsightsId string = '/subscriptions/80e91cef-e379-45a7-b8bf-ebfffea647d
 @secure()
 param appInsightsInstrumentationKey string
 
+@description('Log Analytics workspace (backing the reused App Insights) for AI gateway LLM logs.')
+param logAnalyticsWorkspaceId string = '/subscriptions/80e91cef-e379-45a7-b8bf-ebfffea647da/resourceGroups/rg-foundry/providers/Microsoft.OperationalInsights/workspaces/DefaultWorkspace-3bb77f17-980b-4c5c-abc9-f34a53718e65'
+
 @description('Embeddings API URL (no query params) used for semantic cache vectors.')
 param embeddingsUrl string = 'https://foundry-acw.openai.azure.com/openai/deployments/text-embedding-3-small/embeddings'
 
@@ -241,6 +244,41 @@ resource cacheApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-0
   dependsOn: [ backend, backendFragment, embeddingsBackend ]
 }
 
+// Custom-policy variant — same backend, adds a model allow-list + governance
+// headers via plain C# policy expressions (extensibility beyond the llm-* set).
+resource customApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
+  parent: apim
+  name: 'storyteller-llm-custom'
+  properties: {
+    displayName: 'Storyteller LLM (custom policy)'
+    description: 'Same Foundry backend with a custom model allow-list and governance response headers.'
+    path: '${apiPath}-custom'
+    protocols: [ 'https' ]
+    subscriptionRequired: true
+  }
+}
+
+resource customChatCompletions 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: customApi
+  name: 'chat-completions'
+  properties: {
+    displayName: 'Chat Completions'
+    method: 'POST'
+    urlTemplate: '/chat/completions'
+    description: 'OpenAI chat completions, model-allow-listed with governance headers.'
+  }
+}
+
+resource customApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: customApi
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/custom-policy.xml')
+  }
+  dependsOn: [ backend, backendFragment ]
+}
+
 // External Redis cache binding — only created once Redis host/key are supplied.
 resource externalCache 'Microsoft.ApiManagement/service/caches@2023-09-01-preview' = if (!empty(redisHostName)) {
   parent: apim
@@ -285,6 +323,11 @@ resource productCacheApi 'Microsoft.ApiManagement/service/products/apis@2023-09-
   name: cacheApi.name
 }
 
+resource productCustomApi 'Microsoft.ApiManagement/service/products/apis@2023-09-01-preview' = {
+  parent: product
+  name: customApi.name
+}
+
 resource subscription 'Microsoft.ApiManagement/service/subscriptions@2023-09-01-preview' = {
   parent: apim
   name: 'storyteller-demo'
@@ -310,14 +353,26 @@ resource aiLogger 'Microsoft.ApiManagement/service/loggers@2023-09-01-preview' =
 }
 
 // Diagnostic on the main API; metrics:true is required for llm-emit-token-metric
-// custom metrics, and request/response logging powers the LLM logging demo.
-resource apiDiagnostic 'Microsoft.ApiManagement/service/apis/diagnostics@2023-09-01-preview' = {
+// custom metrics. The largeLanguageModel block logs the actual prompts and
+// completions (as App Insights trace dependencies) for the LLM logging demo.
+resource apiDiagnostic 'Microsoft.ApiManagement/service/apis/diagnostics@2024-10-01-preview' = {
   parent: api
   name: 'applicationinsights'
   properties: {
     loggerId: aiLogger.id
     alwaysLog: 'allErrors'
     metrics: true
+    largeLanguageModel: {
+      logs: 'enabled'
+      requests: {
+        messages: 'all'
+        maxSizeInBytes: 32768
+      }
+      responses: {
+        messages: 'all'
+        maxSizeInBytes: 32768
+      }
+    }
     sampling: {
       samplingType: 'fixed'
       percentage: 100
@@ -325,6 +380,24 @@ resource apiDiagnostic 'Microsoft.ApiManagement/service/apis/diagnostics@2023-09
     verbosity: 'information'
     logClientIp: true
     httpCorrelationProtocol: 'W3C'
+  }
+}
+
+// Azure Monitor diagnostic setting on the APIM service — routes the AI gateway
+// LLM logs (prompts + completions captured by the largeLanguageModel diagnostic
+// above) to the Log Analytics workspace, where they land in the
+// ApiManagementGatewayLlmLog table for the logging demo.
+resource gatewayLlmDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'aig-llm-logs'
+  scope: apim
+  properties: {
+    workspaceId: logAnalyticsWorkspaceId
+    logs: [
+      {
+        category: 'GatewayLlmLogs'
+        enabled: true
+      }
+    ]
   }
 }
 

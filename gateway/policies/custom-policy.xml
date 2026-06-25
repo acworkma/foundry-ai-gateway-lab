@@ -1,0 +1,61 @@
+<!--
+  Custom-policy variant (path: /storyteller-custom).
+
+  Demonstrates APIM policy extensibility *beyond* the built-in llm-* policies
+  using plain C# policy expressions:
+
+  1. Model allow-list — inspect the request body and reject any model that is not
+     on the approved roster with a 400 (custom governance the built-in policies
+     don't provide).
+  2. Governance response headers — stamp every response with the resolved model,
+     the gateway that served it, and a correlation id, so downstream consumers
+     and logs can attribute each completion.
+-->
+<policies>
+    <inbound>
+        <base />
+        <include-fragment fragment-id="storyteller-backend" />
+        <!-- Pull the requested model out of the OpenAI body once, safely. -->
+        <set-variable name="requestedModel" value="@{
+            try { return context.Request.Body?.As<JObject>(true)?["model"]?.ToString() ?? "unknown"; }
+            catch { return "unknown"; }
+        }" />
+        <!-- Allow-list enforcement: only the three storyteller models are permitted. -->
+        <choose>
+            <when condition="@(!new[]{"gpt-5.2","DeepSeek-V3.2","Mistral-Large-3"}.Contains((string)context.Variables["requestedModel"]))">
+                <return-response>
+                    <set-status code="400" reason="Model not allowed" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>@{
+                        return new JObject(
+                            new JProperty("error", new JObject(
+                                new JProperty("code", "model_not_allowed"),
+                                new JProperty("message", "Model '" + (string)context.Variables["requestedModel"] + "' is not on the storyteller allow-list. Permitted: gpt-5.2, DeepSeek-V3.2, Mistral-Large-3.")
+                            ))
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <set-header name="x-gateway-model" exists-action="override">
+            <value>@((string)context.Variables["requestedModel"])</value>
+        </set-header>
+        <set-header name="x-gateway-served-by" exists-action="override">
+            <value>aig-acw/storyteller-custom</value>
+        </set-header>
+        <set-header name="x-gateway-request-id" exists-action="override">
+            <value>@(context.RequestId.ToString())</value>
+        </set-header>
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
