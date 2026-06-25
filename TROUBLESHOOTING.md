@@ -41,6 +41,26 @@ The deployment name must match a deployment that is active in your Foundry proje
 
 The examples use the current `AIProjectClient` + `get_openai_client()` pattern. If you are seeing `agent_reference` errors, make sure you are using the current Foundry project client and not the classic assistant workflow.
 
+The invocation payload must use `agent_reference` (not the deprecated `agent` property):
+
+```python
+response = openai_client.responses.create(
+    conversation=conversation.id,
+    extra_body={"agent_reference": {"name": agent.name, "type": "agent_reference"}},
+    input="Your prompt here",
+)
+```
+
+### `preview_feature_required: WorkflowAgents=V1Preview`
+
+Workflow agents (`workflow-agent.py` / `StoryTellerGenerator`) are a preview feature. Build the project client with preview enabled:
+
+```python
+project = get_project_client(allow_preview=True)
+```
+
+Prompt agents (`agent-gpt`, `agent-deepseek`, `agent-mistral`) are GA and do not need this.
+
 ## Dependency issues
 
 ### `uv sync` fails

@@ -38,7 +38,7 @@ agent = project.agents.create_version(
 openai_client = project.get_openai_client()
 response = openai_client.responses.create(
     conversation=conversation.id,
-    extra_body={"agent": {"name": agent.name, "type": "agent_reference"}},
+    extra_body={"agent_reference": {"name": agent.name, "type": "agent_reference"}},
     input="Your prompt here",
 )
 ```

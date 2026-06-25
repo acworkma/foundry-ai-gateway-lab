@@ -27,15 +27,13 @@ This repository demonstrates a modern Azure AI Foundry quickstart using the curr
    uv run python agent-deepseek.py
    uv run python agent-gpt.py
    uv run python agent-mistral.py
-   uv run python agent-coordinator.py
    uv run python workflow-agent.py
    ```
 
 ## Project structure
 
 - `agent-deepseek.py` / `agent-gpt.py` / `agent-mistral.py` - Prompt agent demos for different model deployments
-- `agent-coordinator.py` - Multi-agent orchestration example
-- `workflow-agent.py` - Workflow-style agent example
+- `workflow-agent.py` - Workflow agent that creates/updates the `StoryTellerGenerator` workflow (fans the prompt out to the three prompt agents)
 - `foundry_foundation.py` - Shared client setup, agent creation, and agent invocation helpers
 - `pyproject.toml` / `uv.lock` - Dependency configuration
 - `.env.example` - Environment template
@@ -49,7 +47,9 @@ This repository demonstrates a modern Azure AI Foundry quickstart using the curr
 
 ## Notes
 
-- The scripts use `AIProjectClient`, `get_openai_client()`, and `responses.create()` with agent references.
+- The scripts use `AIProjectClient`, `get_openai_client()`, and `responses.create()` with an `agent_reference` in `extra_body`.
+- Prompt agents (`agent-deepseek`, `agent-gpt`, `agent-mistral`) use the GA agent surface (`agents.create_version`).
+- The workflow agent (`StoryTellerGenerator` in `workflow-agent.py`) uses a **preview** feature (`WorkflowAgents=V1Preview`); its script opts in via `get_project_client(allow_preview=True)`.
 - The repo no longer assumes prerelease-only tooling; the setup is written for the current SDK experience.
 - Agents created by the examples should appear in the Azure AI Foundry portal when your environment is configured correctly.
 

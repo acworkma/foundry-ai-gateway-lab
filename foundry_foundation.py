@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import Any
 
 from dotenv import load_dotenv
@@ -6,15 +7,28 @@ from azure.identity import DefaultAzureCredential
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
 
+# Ensure agent output prints cleanly on consoles that default to a non-UTF-8
+# code page (e.g. Windows cp1252), since model replies can contain characters
+# like non-breaking hyphens or emoji.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
 load_dotenv()
 
 
-def get_project_client() -> AIProjectClient:
+def get_project_client(*, allow_preview: bool = False) -> AIProjectClient:
     endpoint = os.getenv("PROJECT_ENDPOINT")
     if not endpoint:
         raise RuntimeError("PROJECT_ENDPOINT is required. Set it in your .env file.")
 
-    return AIProjectClient(endpoint=endpoint, credential=DefaultAzureCredential())
+    return AIProjectClient(
+        endpoint=endpoint,
+        credential=DefaultAzureCredential(),
+        allow_preview=allow_preview,
+    )
 
 
 def get_required_setting(name: str) -> str:
@@ -51,7 +65,7 @@ def invoke_agent(openai_client: Any, *, agent_name: str, input_text: str, conver
 
     response = openai_client.responses.create(
         conversation=conversation.id,
-        extra_body={"agent": {"name": agent_name, "type": "agent_reference"}},
+        extra_body={"agent_reference": {"name": agent_name, "type": "agent_reference"}},
         input=input_text,
     )
     return conversation, response

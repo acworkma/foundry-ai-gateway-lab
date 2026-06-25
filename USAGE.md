@@ -37,13 +37,11 @@ Each model-specific script follows the same pattern:
 
 They create a prompt agent with a hardcoded `MODEL_DEPLOYMENT_NAME` and immediately call it through the project’s OpenAI client.
 
-### Multi-agent coordinator
+### Multi-agent workflow
 
-`agent-coordinator.py` demonstrates calling several agents and combining their responses in a single flow.
+`workflow-agent.py` creates/updates the `StoryTellerGenerator` workflow agent, which fans the user prompt out to the `agent-gpt`, `agent-deepseek`, and `agent-mistral` prompt agents and streams each reply back.
 
-### Workflow-style example
-
-`workflow-agent.py` shows the same concept using a workflow definition object and the agent service’s workflow-capable agent type.
+> Note: workflow agents are currently a Foundry **preview** feature (`WorkflowAgents=V1Preview`). The script opts in by calling `get_project_client(allow_preview=True)`. The prompt agent scripts do not require preview.
 
 ## Environment configuration
 
