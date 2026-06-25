@@ -17,6 +17,13 @@ param inferenceBaseUrl string = 'https://foundry-acw.services.ai.azure.com/model
 @description('API path suffix exposed by the gateway.')
 param apiPath string = 'storyteller'
 
+@description('Resource ID of the existing Application Insights component to reuse.')
+param appInsightsId string = '/subscriptions/80e91cef-e379-45a7-b8bf-ebfffea647da/resourceGroups/rg-foundry/providers/microsoft.insights/components/proj-acw-appinsights-4422'
+
+@description('Instrumentation key of the existing Application Insights component.')
+@secure()
+param appInsightsInstrumentationKey string
+
 resource apim 'Microsoft.ApiManagement/service@2023-09-01-preview' existing = {
   name: apimName
 }
@@ -79,7 +86,7 @@ resource apiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-pre
     format: 'rawxml'
     value: loadTextContent('../policies/base.xml')
   }
-  dependsOn: [ backend, backendFragment ]
+  dependsOn: [ backend, backendFragment, apiDiagnostic ]
 }
 
 // Throttled variant — same backend, adds llm-token-limit for the rate-limit demo.
@@ -146,6 +153,39 @@ resource subscription 'Microsoft.ApiManagement/service/subscriptions@2023-09-01-
     displayName: 'Storyteller demo client'
     scope: product.id
     state: 'active'
+  }
+}
+
+// Application Insights logger (reuses the existing proj-acw-appinsights-4422).
+resource aiLogger 'Microsoft.ApiManagement/service/loggers@2023-09-01-preview' = {
+  parent: apim
+  name: 'appinsights'
+  properties: {
+    loggerType: 'applicationInsights'
+    description: 'Reused proj-acw-appinsights-4422 for LLM token metrics + logging'
+    resourceId: appInsightsId
+    credentials: {
+      instrumentationKey: appInsightsInstrumentationKey
+    }
+  }
+}
+
+// Diagnostic on the main API; metrics:true is required for llm-emit-token-metric
+// custom metrics, and request/response logging powers the LLM logging demo.
+resource apiDiagnostic 'Microsoft.ApiManagement/service/apis/diagnostics@2023-09-01-preview' = {
+  parent: api
+  name: 'applicationinsights'
+  properties: {
+    loggerId: aiLogger.id
+    alwaysLog: 'allErrors'
+    metrics: true
+    sampling: {
+      samplingType: 'fixed'
+      percentage: 100
+    }
+    verbosity: 'information'
+    logClientIp: true
+    httpCorrelationProtocol: 'W3C'
   }
 }
 
