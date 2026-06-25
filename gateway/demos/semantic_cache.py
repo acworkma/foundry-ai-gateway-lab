@@ -16,6 +16,7 @@ Run:
 from __future__ import annotations
 
 import os
+import random
 import time
 
 import httpx
@@ -27,10 +28,19 @@ load_dotenv()
 BASE = os.environ["GATEWAY_BASE_URL"].replace("/storyteller", "/storyteller-cache")
 KEY = os.environ["GATEWAY_SUBSCRIPTION_KEY"]
 
+# Randomize the subject every run so the "miss" prompts are always novel (cold),
+# making the miss -> hit -> miss pattern reproducible even within the cache TTL.
+CREATURE = random.choice(["dragon", "griffin", "kraken", "phoenix", "yeti"])
+FEAR = random.choice(["fire", "heights", "the dark", "deep water", "thunder"])
+OTHER = random.choice(
+    ["a submarine captain who finds a city", "a clockmaker who stops time",
+     "a gardener who grows stars", "a lighthouse keeper who talks to whales"]
+)
+
 PROBES = [
-    ("first ask (expect MISS)", "Tell a short story about a dragon who is afraid of fire."),
-    ("reworded (expect HIT)", "Share a brief tale of a dragon that fears flames."),
-    ("different (expect MISS)", "Tell a short story about a submarine captain who finds a city."),
+    ("first ask (expect MISS)", f"Tell a short story about a {CREATURE} who is afraid of {FEAR}."),
+    ("reworded (expect HIT)", f"Share a brief tale of a {CREATURE} that fears {FEAR}."),
+    ("different (expect MISS)", f"Tell a short story about {OTHER}."),
 ]
 
 
@@ -56,15 +66,16 @@ def main() -> None:
     with httpx.Client(timeout=60) as client:
         for label, prompt in PROBES:
             dt, text = ask(client, prompt)
-            verdict = ""
             if first_text is None:
                 first_text = text
+                verdict = "MISS (backend)"
             elif text == first_text:
-                verdict = "  <-- CACHE HIT (identical to first)"
-            tag = "fast" if dt < 0.4 else "slow"
-            print(f"[{label:<24}] {dt:5.2f}s ({tag}){verdict}")
-    print("\nReworded prompt served from cache (fast + identical); the unrelated "
-          "prompt went to the backend.")
+                verdict = "HIT  (served from cache, identical to first)"
+            else:
+                verdict = "MISS (backend, different story)"
+            print(f"[{label:<24}] {dt:5.2f}s  {verdict}")
+    print("\nThe reworded prompt returns the first story verbatim from the semantic "
+          "cache; the unrelated prompt produces a fresh story from the backend.")
 
 
 if __name__ == "__main__":

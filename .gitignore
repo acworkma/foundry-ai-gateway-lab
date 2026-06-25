@@ -20,3 +20,6 @@ wheels/
 *.pfx
 *.crt
 *.cer
+
+# Compiled Bicep output (ARM JSON)
+gateway/infra/*.json
