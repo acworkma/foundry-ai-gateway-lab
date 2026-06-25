@@ -53,6 +53,22 @@ This repository demonstrates a modern Azure AI Foundry quickstart using the curr
 - The repo no longer assumes prerelease-only tooling; the setup is written for the current SDK experience.
 - Agents created by the examples should appear in the Azure AI Foundry portal when your environment is configured correctly.
 
+## Testing
+
+Offline unit tests (no Azure access required) guard the foundation helpers and
+the workflow definition structure. Install the dev dependencies and run them
+with:
+
+```bash
+uv sync
+uv run pytest
+```
+
+The suite checks env-var handling, the `agent_reference` request payload, and
+that the `StoryTellerGenerator` workflow keeps `autoSend` on each agent with no
+unevaluated Power Fx `SendActivity` formulas. Live end-to-end runs against a
+real Foundry project are exercised by running the agent scripts directly.
+
 ## Next steps
 
 - See [AZURE_SETUP.md](AZURE_SETUP.md) for environment and permission guidance
