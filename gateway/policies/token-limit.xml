@@ -1,0 +1,27 @@
+<!--
+  Throttled Storyteller API policy (path: /storyteller-throttled).
+  Demonstrates llm-token-limit: a low per-subscription token-per-minute rate so
+  the storyteller trips a 429 quickly. Response headers expose remaining and
+  consumed tokens so the demo can show the budget draining in real time.
+-->
+<policies>
+    <inbound>
+        <base />
+        <include-fragment fragment-id="storyteller-backend" />
+        <llm-token-limit counter-key="@(context.Subscription.Id)"
+            tokens-per-minute="1000"
+            estimate-prompt-tokens="false"
+            remaining-tokens-header-name="x-remaining-tokens"
+            tokens-consumed-header-name="x-tokens-consumed"
+            retry-after-header-name="x-retry-after" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

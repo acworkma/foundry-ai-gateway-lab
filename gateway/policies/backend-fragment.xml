@@ -1,0 +1,15 @@
+<!--
+  Reusable backend routing for every Storyteller API.
+  Inserted (via include-fragment) into the inbound section of each API policy:
+  - Routes to the Foundry Azure AI Model Inference backend.
+  - Authenticates with the APIM system-assigned managed identity (account keys
+    are disabled on foundry-acw, so MI is required).
+  - Forces the api-version query parameter the inference endpoint expects.
+-->
+<fragment>
+    <set-backend-service backend-id="foundry-inference" />
+    <authentication-managed-identity resource="https://cognitiveservices.azure.com" />
+    <set-query-parameter name="api-version" exists-action="override">
+        <value>2024-05-01-preview</value>
+    </set-query-parameter>
+</fragment>

@@ -1,18 +1,15 @@
 <!--
-  Base policy for the Storyteller LLM API.
-  - Routes to the Foundry Azure AI Model Inference backend.
-  - Authenticates to the backend with the APIM system-assigned managed identity
-    (account keys are disabled on foundry-acw, so MI is required).
-  - Forces the api-version query parameter the inference endpoint expects.
+  Main Storyteller LLM API policy (path: /storyteller).
+  Clean passthrough to Foundry via the shared backend fragment. AI gateway
+  capabilities that are safe to run on every call (token metrics, semantic
+  cache, content safety) are layered in here as their backing resources are
+  provisioned. Token rate limiting lives on the dedicated /storyteller-throttled
+  API so it doesn't interfere with the main fan-out demo.
 -->
 <policies>
     <inbound>
         <base />
-        <set-backend-service backend-id="foundry-inference" />
-        <authentication-managed-identity resource="https://cognitiveservices.azure.com" />
-        <set-query-parameter name="api-version" exists-action="override">
-            <value>2024-05-01-preview</value>
-        </set-query-parameter>
+        <include-fragment fragment-id="storyteller-backend" />
     </inbound>
     <backend>
         <base />

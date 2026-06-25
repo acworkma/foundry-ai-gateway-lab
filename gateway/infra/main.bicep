@@ -21,6 +21,17 @@ resource apim 'Microsoft.ApiManagement/service@2023-09-01-preview' existing = {
   name: apimName
 }
 
+// Reusable backend routing (MI auth + backend + api-version) shared by every
+// Storyteller API via include-fragment.
+resource backendFragment 'Microsoft.ApiManagement/service/policyFragments@2023-09-01-preview' = {
+  parent: apim
+  name: 'storyteller-backend'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/backend-fragment.xml')
+  }
+}
+
 // NOTE: The APIM system-assigned identity already holds the "Cognitive Services
 // User" role on foundry-acw (required because account keys are disabled). That
 // assignment is managed outside this template; if you redeploy into a fresh
@@ -68,7 +79,41 @@ resource apiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-pre
     format: 'rawxml'
     value: loadTextContent('../policies/base.xml')
   }
-  dependsOn: [ backend ]
+  dependsOn: [ backend, backendFragment ]
+}
+
+// Throttled variant — same backend, adds llm-token-limit for the rate-limit demo.
+resource throttledApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
+  parent: apim
+  name: 'storyteller-llm-throttled'
+  properties: {
+    displayName: 'Storyteller LLM (token-limited)'
+    description: 'Same Foundry backend with a low per-subscription token rate limit, for the llm-token-limit demo.'
+    path: '${apiPath}-throttled'
+    protocols: [ 'https' ]
+    subscriptionRequired: true
+  }
+}
+
+resource throttledChatCompletions 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: throttledApi
+  name: 'chat-completions'
+  properties: {
+    displayName: 'Chat Completions'
+    method: 'POST'
+    urlTemplate: '/chat/completions'
+    description: 'OpenAI chat completions, token-rate-limited.'
+  }
+}
+
+resource throttledApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: throttledApi
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/token-limit.xml')
+  }
+  dependsOn: [ backend, backendFragment ]
 }
 
 // Dedicated product + subscription so demo clients have a stable subscription key.
@@ -87,6 +132,11 @@ resource product 'Microsoft.ApiManagement/service/products@2023-09-01-preview' =
 resource productApi 'Microsoft.ApiManagement/service/products/apis@2023-09-01-preview' = {
   parent: product
   name: api.name
+}
+
+resource productThrottledApi 'Microsoft.ApiManagement/service/products/apis@2023-09-01-preview' = {
+  parent: product
+  name: throttledApi.name
 }
 
 resource subscription 'Microsoft.ApiManagement/service/subscriptions@2023-09-01-preview' = {
