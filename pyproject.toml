@@ -19,5 +19,5 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["agents"]
 testpaths = ["tests"]

@@ -24,17 +24,20 @@ This repository demonstrates a modern Azure AI Foundry quickstart using the curr
 
 3. Run the examples:
    ```bash
-   uv run python agent-deepseek.py
-   uv run python agent-gpt.py
-   uv run python agent-mistral.py
-   uv run python workflow-agent.py
+   uv run python agents/agent-deepseek.py
+   uv run python agents/agent-gpt.py
+   uv run python agents/agent-mistral.py
+   uv run python agents/workflow-agent.py
    ```
 
 ## Project structure
 
-- `agent-deepseek.py` / `agent-gpt.py` / `agent-mistral.py` - Prompt agent demos for different model deployments
-- `workflow-agent.py` - Workflow agent that creates/updates the `StoryTellerGenerator` workflow (fans the prompt out to the three prompt agents)
-- `foundry_foundation.py` - Shared client setup, agent creation, and agent invocation helpers
+- `agents/` - Foundry agent scripts and shared helpers
+  - `agents/agent-deepseek.py` / `agents/agent-gpt.py` / `agents/agent-mistral.py` - Prompt agent demos for different model deployments
+  - `agents/workflow-agent.py` - Workflow agent that creates/updates the `StoryTellerGenerator` workflow (fans the prompt out to the three prompt agents)
+  - `agents/foundry_foundation.py` - Shared client setup, agent creation, and agent invocation helpers
+- `gateway/` - APIM AI-gateway lab (policies, Bicep, and demos)
+- `tests/` - Offline unit tests
 - `pyproject.toml` / `uv.lock` - Dependency configuration
 - `.env.example` - Environment template
 
@@ -49,7 +52,7 @@ This repository demonstrates a modern Azure AI Foundry quickstart using the curr
 
 - The scripts use `AIProjectClient`, `get_openai_client()`, and `responses.create()` with an `agent_reference` in `extra_body`.
 - Prompt agents (`agent-deepseek`, `agent-gpt`, `agent-mistral`) use the GA agent surface (`agents.create_version`).
-- The workflow agent (`StoryTellerGenerator` in `workflow-agent.py`) uses a **preview** feature (`WorkflowAgents=V1Preview`); its script opts in via `get_project_client(allow_preview=True)`.
+- The workflow agent (`StoryTellerGenerator` in `agents/workflow-agent.py`) uses a **preview** feature (`WorkflowAgents=V1Preview`); its script opts in via `get_project_client(allow_preview=True)`.
 - The repo no longer assumes prerelease-only tooling; the setup is written for the current SDK experience.
 - Agents created by the examples should appear in the Azure AI Foundry portal when your environment is configured correctly.
 

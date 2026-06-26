@@ -50,7 +50,8 @@ response = openai_client.responses.create(
 - Do not use `openai_client.beta.threads.runs.create()`
 
 ## File Naming Conventions
-- Agent files: `agent-{model}.py` (for example `agent-deepseek.py`)
+- Agent scripts and shared helpers live in `agents/`
+- Agent files: `agents/agent-{model}.py` (for example `agents/agent-deepseek.py`)
 - Agent names should match file names where practical
 - Use hardcoded model deployment names in each agent file
 - Environment configuration lives in `.env`

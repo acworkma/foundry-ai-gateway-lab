@@ -53,7 +53,7 @@ response = openai_client.responses.create(
 
 ### `preview_feature_required: WorkflowAgents=V1Preview`
 
-Workflow agents (`workflow-agent.py` / `StoryTellerGenerator`) are a preview feature. Build the project client with preview enabled:
+Workflow agents (`agents/workflow-agent.py` / `StoryTellerGenerator`) are a preview feature. Build the project client with preview enabled:
 
 ```python
 project = get_project_client(allow_preview=True)
