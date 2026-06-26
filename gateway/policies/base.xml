@@ -13,7 +13,7 @@
         <llm-emit-token-metric namespace="StorytellerGateway">
             <dimension name="API ID" />
             <dimension name="Subscription ID" />
-            <dimension name="Model" value="@{ try { return context.Request.Body?.As<JObject>(true)?[&quot;model&quot;]?.ToString() ?? &quot;unknown&quot;; } catch { return &quot;unknown&quot;; } }" />
+            <dimension name="Model" value="@(context.Request.Body.As&lt;JObject&gt;(true)[&quot;model&quot;]?.ToString() ?? &quot;unknown&quot;)" />
         </llm-emit-token-metric>
     </inbound>
     <backend>
