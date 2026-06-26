@@ -4,7 +4,7 @@ This project demonstrates a few practical patterns for working with Azure AI Fou
 
 ## Shared foundation
 
-The repo now centralizes the common setup in `foundry_foundation.py`:
+The repo now centralizes the common setup in `agents/foundry_foundation.py`:
 
 ```python
 from foundry_foundation import create_prompt_agent, get_project_client, invoke_agent
@@ -31,15 +31,15 @@ conversation, response = invoke_agent(
 
 Each model-specific script follows the same pattern:
 
-- `agent-deepseek.py`
-- `agent-gpt.py`
-- `agent-mistral.py`
+- `agents/agent-deepseek.py`
+- `agents/agent-gpt.py`
+- `agents/agent-mistral.py`
 
 They create a prompt agent with a hardcoded `MODEL_DEPLOYMENT_NAME` and immediately call it through the project’s OpenAI client.
 
 ### Multi-agent workflow
 
-`workflow-agent.py` creates/updates the `StoryTellerGenerator` workflow agent, which fans the user prompt out to the `agent-gpt`, `agent-deepseek`, and `agent-mistral` prompt agents and streams each reply back.
+`agents/workflow-agent.py` creates/updates the `StoryTellerGenerator` workflow agent, which fans the user prompt out to the `agent-gpt`, `agent-deepseek`, and `agent-mistral` prompt agents and streams each reply back.
 
 > Note: workflow agents are currently a Foundry **preview** feature (`WorkflowAgents=V1Preview`). The script opts in by calling `get_project_client(allow_preview=True)`. The prompt agent scripts do not require preview.
 

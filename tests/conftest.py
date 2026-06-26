@@ -16,4 +16,4 @@ def _load_module(file_name: str, module_name: str):
 
 @pytest.fixture(scope="session")
 def workflow_module():
-    return _load_module("workflow-agent.py", "workflow_agent")
+    return _load_module("agents/workflow-agent.py", "workflow_agent")
