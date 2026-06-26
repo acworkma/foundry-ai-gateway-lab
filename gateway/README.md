@@ -97,15 +97,24 @@ uv run python gateway/demos/logging_dashboard.py         # logged prompts + comp
 
 ## Where to look
 
-* **Token metrics** — App Insights `proj-acw-appinsights-4422`:
+* **Token metrics** — the App Insights component `proj-acw-appinsights-4422` is
+  **workspace-based**, so the metrics land in the Log Analytics workspace as the
+  `AppMetrics` table. Run this in the **Log Analytics workspace** query editor (the
+  same place as the LLM-log query below):
 
   ```kusto
-  customMetrics
-  | where timestamp > ago(30m)
-  | where name in ('Total Tokens','Prompt Tokens','Completion Tokens')
-  | extend Model = tostring(customDimensions['Model'])
-  | summarize Tokens = sum(valueSum) by name, Model
+  AppMetrics
+  | where TimeGenerated > ago(30m)
+  | where Name in ('Total Tokens','Prompt Tokens','Completion Tokens')
+  | extend Model = tostring(Properties['Model'])
+  | summarize Tokens = sum(Sum) by Name, Model
   ```
+
+  > If you instead open the **Application Insights** resource's own *Logs* blade,
+  > use the legacy aliases — `customMetrics`, `timestamp`, `name`, `valueSum`,
+  > `customDimensions`. Those names resolve *only* in the App Insights Logs
+  > experience; the Log Analytics workspace editor (shown above) exposes the
+  > strongly-typed `AppMetrics` schema instead.
 
 * **LLM logs (prompts + completions)** — Log Analytics `ApiManagementGatewayLlmLog`:
 
