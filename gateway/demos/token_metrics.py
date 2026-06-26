@@ -8,14 +8,27 @@ namespace, dimensioned by API, Subscription, and Model.
 Run:
     uv run python gateway/demos/token_metrics.py
 
-Then inspect in Application Insights (Logs) — metrics take ~2-5 min to ingest:
+Then inspect in the Log Analytics workspace (the workspace-based App Insights
+stores metrics as AppMetrics) — metrics take ~2-5 min to ingest:
 
-    customMetrics
-    | where timestamp > ago(30m)
-    | where name in ('Total Tokens','Prompt Tokens','Completion Tokens')
-    | extend Model = tostring(customDimensions['Model'])
-    | summarize Tokens = sum(valueSum) by name, Model
+    AppMetrics
+    | where TimeGenerated > ago(30m)
+    | where Name in ('Total Tokens','Prompt Tokens','Completion Tokens')
+    | extend Model = tostring(Properties['Model'])
+    | summarize Tokens = sum(Sum) by Name, Model
     | order by Model asc
+
+The policy stamps three custom dimensions (Model, API ID, Subscription ID). To
+prove per-consumer / per-API attribution, surface all of them:
+
+    AppMetrics
+    | where TimeGenerated > ago(30m)
+    | where Name == 'Total Tokens'
+    | extend Consumer = tostring(Properties['Subscription ID']),
+             ApiId    = tostring(Properties['API ID']),
+             Model    = tostring(Properties['Model'])
+    | summarize Tokens = sum(Sum) by Consumer, ApiId, Model
+    | order by Consumer, Model asc
 """
 
 from __future__ import annotations

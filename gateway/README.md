@@ -116,6 +116,33 @@ uv run python gateway/demos/logging_dashboard.py         # logged prompts + comp
   > experience; the Log Analytics workspace editor (shown above) exposes the
   > strongly-typed `AppMetrics` schema instead.
 
+  **Custom dimensions (the governance payload).** The `llm-emit-token-metric`
+  policy in `policies/base.xml` stamps every metric with three dimensions —
+  `Model` (a custom policy expression that parses the request body) plus the
+  auto-populated `API ID` and `Subscription ID`. They surface in the `Properties`
+  bag. This query proves **per-consumer, per-API, per-model** attribution — the
+  "track token metrics per consumer" capability that drives chargeback and quota:
+
+  ```kusto
+  AppMetrics
+  | where TimeGenerated > ago(30m)
+  | where Name == 'Total Tokens'
+  | extend Consumer = tostring(Properties['Subscription ID']),
+           ApiId    = tostring(Properties['API ID']),
+           Model    = tostring(Properties['Model'])
+  | summarize Tokens = sum(Sum) by Consumer, ApiId, Model
+  | order by Consumer, Model asc
+  ```
+
+  Example output (one consumer, one API, split by model):
+
+  ```
+  ApiId            Consumer          Model            Tokens
+  storyteller-llm  storyteller-demo  DeepSeek-V3.2     2392
+  storyteller-llm  storyteller-demo  Mistral-Large-3   2061
+  storyteller-llm  storyteller-demo  gpt-5.2           4608
+  ```
+
 * **LLM logs (prompts + completions)** — Log Analytics `ApiManagementGatewayLlmLog`:
 
   ```kusto
