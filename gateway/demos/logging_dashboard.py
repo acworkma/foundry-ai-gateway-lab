@@ -39,9 +39,18 @@ PROMPTS = [
     f"{TAG} Tell a one-sentence story about a beekeeper who tends comets.",
 ]
 
-# Join each logged request with its response by CorrelationId, then keep only the
-# rows for this run's tag. Mirrors the Microsoft-documented auditing query.
-KQL = """
+# LLM logs can land in one of two tables depending on the diagnostic setting's
+# destination type:
+#   * Dedicated (resource-specific)  -> ApiManagementGatewayLlmLog  (preferred)
+#   * AzureDiagnostics (legacy)       -> AzureDiagnostics rows w/ *_s columns
+# When you flip an existing gateway from legacy to dedicated, the running gateway
+# keeps writing to the legacy table for a while before it repoints. We query the
+# dedicated table first and transparently fall back to the legacy one, so the demo
+# proves the capability regardless of which table currently holds the data.
+#
+# Each KQL joins every logged request with its response by CorrelationId and keeps
+# only the rows for this run's tag. Mirrors the Microsoft-documented auditing query.
+KQL_DEDICATED = """
 ApiManagementGatewayLlmLog
 | where TimeGenerated > ago(1h)
 | extend RequestArray = parse_json(RequestMessages)
@@ -55,6 +64,31 @@ ApiManagementGatewayLlmLog
     Input = strcat_array(make_list(RequestContent), " "),
     Output = strcat_array(make_list(ResponseContent), " "),
     Model = any(DeploymentName)
+    by CorrelationId
+| where Input has "{tag}"
+| project Model, Input, Output
+"""
+
+KQL_LEGACY = """
+AzureDiagnostics
+| where Category == "GatewayLlmLogs"
+| where TimeGenerated > ago(1h)
+| summarize
+    ReqJson = take_anyif(requestMessages_s, isnotempty(requestMessages_s)),
+    RespJson = take_anyif(responseMessages_s, isnotempty(responseMessages_s)),
+    Model = take_anyif(deploymentName_s, isnotempty(deploymentName_s))
+    by CorrelationId
+| extend RequestArray = parse_json(ReqJson)
+| extend ResponseArray = parse_json(RespJson)
+| mv-expand RequestArray
+| mv-expand ResponseArray
+| project CorrelationId, Model,
+          RequestContent = tostring(RequestArray.content),
+          ResponseContent = tostring(ResponseArray.content)
+| summarize
+    Input = strcat_array(make_list(RequestContent), " "),
+    Output = strcat_array(make_list(ResponseContent), " "),
+    Model = any(Model)
     by CorrelationId
 | where Input has "{tag}"
 | project Model, Input, Output
@@ -77,34 +111,50 @@ def send_traffic() -> None:
     print(f"Sent {len(PROMPTS)} tagged prompts (tag={TAG}).")
 
 
-def query_logs(minutes: int = 10) -> list:
+def _run_query(client: LogsQueryClient, kql: str) -> list:
+    query = kql.replace("{tag}", TAG)
+    resp = client.query_workspace(WORKSPACE_ID, query, timespan=None)
+    if resp.status == LogsQueryStatus.SUCCESS and resp.tables and resp.tables[0].rows:
+        return resp.tables[0].rows
+    return []
+
+
+def query_logs(minutes: int = 10) -> tuple[list, str]:
+    """Poll both the dedicated and legacy tables until rows show up (or we time out).
+
+    Returns (rows, table_label).
+    """
     client = LogsQueryClient(DefaultAzureCredential())
-    query = KQL.replace("{tag}", TAG)
     deadline = time.time() + minutes * 60
     attempt = 0
     while time.time() < deadline:
         attempt += 1
-        resp = client.query_workspace(WORKSPACE_ID, query, timespan=None)
-        if resp.status == LogsQueryStatus.SUCCESS and resp.tables and resp.tables[0].rows:
-            return resp.tables[0].rows
+        rows = _run_query(client, KQL_DEDICATED)
+        if rows:
+            return rows, "ApiManagementGatewayLlmLog (resource-specific)"
+        rows = _run_query(client, KQL_LEGACY)
+        if rows:
+            return rows, "AzureDiagnostics (legacy GatewayLlmLogs)"
         print(f"  ...no rows yet (attempt {attempt}); LLM logs ingest with a delay, retrying in 30s")
         time.sleep(30)
-    return []
+    return [], ""
 
 
 def main() -> None:
-    print(f"LLM logging demo -> ApiManagementGatewayLlmLog (workspace {WORKSPACE_ID})")
+    print(f"LLM logging demo -> Log Analytics workspace {WORKSPACE_ID}")
     print("=" * 60)
     send_traffic()
     print("Querying Log Analytics for the logged prompts and completions...")
-    rows = query_logs()
+    rows, table = query_logs()
     if not rows:
         print("\nNo rows returned yet. Resource-log ingestion to Log Analytics can lag "
-              "10-30 min on first enablement; re-run the query later. The KQL used:\n")
-        print(KQL.replace("{tag}", TAG))
+              "10-30 min on first enablement; re-run the query later. The KQL used "
+              "(resource-specific table):\n")
+        print(KQL_DEDICATED.replace("{tag}", TAG))
         return
+    print(f"Found {len(rows)} logged call(s) in {table}.")
     for model, inp, out in rows:
-        print(f"\n[model] {model}")
+        print(f"\n[model] {model or '(n/a)'}")
         print(f"[prompt]     {inp.strip()[:200]}")
         print(f"[completion] {out.strip()[:200]}")
     print("\nEvery governed call is logged with its prompt and completion — auditable "

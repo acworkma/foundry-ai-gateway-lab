@@ -125,6 +125,16 @@ uv run python gateway/demos/logging_dashboard.py         # logged prompts + comp
   Resource-log ingestion to Log Analytics can lag 10–30 min the first time the
   `GatewayLlmLogs` category is enabled on the workspace.
 
+  **Which table?** The diagnostic setting uses `logAnalyticsDestinationType:
+  'Dedicated'` so records land in the resource-specific `ApiManagementGatewayLlmLog`
+  table (the modern, strongly-typed schema). If a gateway is left on the legacy
+  default, the same records instead land in `AzureDiagnostics`
+  (`Category == "GatewayLlmLogs"`, columns `requestMessages_s` / `responseMessages_s`).
+  When you flip an already-running gateway from legacy to dedicated, it keeps
+  writing to `AzureDiagnostics` for a while before it repoints, so
+  `logging_dashboard.py` queries the dedicated table first and transparently
+  falls back to `AzureDiagnostics` — proving the capability either way.
+
 ## Layout
 
 ```

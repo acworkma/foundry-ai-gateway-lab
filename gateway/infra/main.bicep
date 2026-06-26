@@ -392,6 +392,11 @@ resource gatewayLlmDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-previe
   scope: apim
   properties: {
     workspaceId: logAnalyticsWorkspaceId
+    // 'Dedicated' routes records to the resource-specific
+    // ApiManagementGatewayLlmLog table. The default ('AzureDiagnostics')
+    // would instead dump them into the legacy, schema-less AzureDiagnostics
+    // table, where the logging demo's KQL would not find them.
+    logAnalyticsDestinationType: 'Dedicated'
     logs: [
       {
         category: 'GatewayLlmLogs'
