@@ -52,6 +52,12 @@ circuit breaker, native scaling, MCP/A2A, developer portal. Noted in the plan.
 Infra is Bicep at resource-group scope (`rg-foundry`). The cache binding and LLM
 log routing are wired in the same template.
 
+> **Prefer clicking through the portal?** See
+> [docs/portal-setup.md](docs/portal-setup.md) for a click-by-click walkthrough of
+> importing a Foundry model as an APIM API with managed-identity auth — ideal for
+> a live customer demo. The Bicep below stays the source of truth for repeatable
+> deploys.
+
 ```powershell
 # 1) Provision Azure Managed Redis (slowest resource; separate template).
 az deployment group create -g rg-foundry --name aig-redis `
