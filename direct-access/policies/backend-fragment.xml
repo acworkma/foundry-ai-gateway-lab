@@ -1,0 +1,18 @@
+<!--
+  Reusable backend routing for every direct-access model API.
+  Included (via include-fragment) in the inbound section of each per-model API:
+  - Routes to the Foundry Azure AI Model Inference backend (foundry-models).
+  - Authenticates with the APIM system-assigned managed identity (account keys
+    are disabled on foundry-acw, so MI is required).
+  - Forces the api-version query parameter the inference endpoint expects.
+  The client's own bearer token is only used by validate-azure-ad-token for
+  authorization; authentication-managed-identity replaces the Authorization
+  header with the MI token before the call leaves the gateway.
+-->
+<fragment>
+    <set-backend-service backend-id="foundry-models" />
+    <authentication-managed-identity resource="https://cognitiveservices.azure.com" />
+    <set-query-parameter name="api-version" exists-action="override">
+        <value>2024-05-01-preview</value>
+    </set-query-parameter>
+</fragment>

@@ -1,0 +1,41 @@
+<!--
+  Coding Assistants model API (path: /codex) — direct-access lab.
+  Access is restricted to callers whose Entra token carries the
+  Model.Coding.Invoke app role (assigned to the AIG-Coding-Assistants group and
+  to authorized service principals). The API forces the model server-side to
+  gpt-5.3-codex, so a coding-scoped key cannot be repurposed to call a different
+  model by editing the request body.
+
+  gpt-5.3-codex is a Responses-API model: send {"input": "..."} to
+  POST /codex/responses (not chat/completions).
+-->
+<policies>
+    <inbound>
+        <base />
+        <validate-azure-ad-token tenant-id="{{aad-tenant-id}}" failed-validation-httpcode="403" failed-validation-error-message="Forbidden: your identity is not assigned the Model.Coding.Invoke role required for the coding models.">
+            <audiences>
+                <audience>{{model-audience}}</audience>
+            </audiences>
+            <required-claims>
+                <claim name="roles" match="any">
+                    <value>Model.Coding.Invoke</value>
+                </claim>
+            </required-claims>
+        </validate-azure-ad-token>
+        <include-fragment fragment-id="direct-responses-backend" />
+        <set-body>@{
+            JObject body = context.Request.Body.As&lt;JObject&gt;(true);
+            body["model"] = "gpt-5.3-codex";
+            return body.ToString();
+        }</set-body>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

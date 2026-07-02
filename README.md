@@ -1,6 +1,6 @@
 # Azure AI Foundry Quickstart
 
-This repository demonstrates a modern Azure AI Foundry quickstart using the current `azure-ai-projects` SDK and the new Foundry agent experience. It keeps the original storytelling demos while moving the implementation behind a shared foundation module so it is easier to extend later. It also includes an [AI Gateway Lab](#ai-gateway-lab) that fronts the same workload with Azure API Management to demonstrate the Azure AI gateway capabilities.
+This repository demonstrates a modern Azure AI Foundry quickstart using the current `azure-ai-projects` SDK and the new Foundry agent experience. It keeps the original storytelling demos while moving the implementation behind a shared foundation module so it is easier to extend later. It also includes an [AI Gateway Lab](#ai-gateway-lab) that fronts the same workload with Azure API Management to demonstrate the Azure AI gateway capabilities, plus a [Direct Access Lab](#direct-access-lab) that exposes individual Foundry models directly through APIM with Entra ID group/role access control.
 
 ## Prerequisites
 
@@ -37,6 +37,7 @@ This repository demonstrates a modern Azure AI Foundry quickstart using the curr
   - `agents/workflow-agent.py` - Workflow agent that creates/updates the `StoryTellerGenerator` workflow (fans the prompt out to the three prompt agents)
   - `agents/foundry_foundation.py` - Shared client setup, agent creation, and agent invocation helpers
 - `gateway/` - APIM AI-gateway lab (policies, Bicep, and demos) — see [AI Gateway Lab](#ai-gateway-lab) and [gateway/README.md](gateway/README.md)
+- `direct-access/` - Direct-to-model RBAC lab (per-model APIs + Entra app roles) — see [Direct Access Lab](#direct-access-lab) and [direct-access/README.md](direct-access/README.md)
 - `tests/` - Offline unit tests
 - `pyproject.toml` / `uv.lock` - Dependency configuration
 - `.env.example` - Environment template
@@ -64,6 +65,46 @@ visible in the terminal.
 [gateway/README.md](gateway/README.md).** It covers the Bicep deployment, the
 `.env` the demos expect, the seven `uv run python gateway/demos/*.py` commands,
 and the KQL queries that surface the evidence in App Insights and Log Analytics.
+
+## Direct Access Lab
+
+The `direct-access/` folder is a separate lab that exposes **individual Foundry
+models directly** through APIM — no agent in front — and governs **which
+developers can call which model** using Entra ID app roles. It answers the
+regulated-industry question "how do I group and limit model access without
+standing up a developer portal?"
+
+Each model is its own API, bundled into an APIM **product**, and locked to an
+Entra **app role** enforced at the gateway by `validate-azure-ad-token`:
+
+| Product | API (path) | Model | Required app role |
+| --- | --- | --- | --- |
+| Coding Assistants | `/codex/responses` | gpt-5.3-codex | `Model.Coding.Invoke` |
+| General LLM | `/gpt52/chat/completions` | gpt-5.2 | `Model.General.Invoke` |
+| General LLM | `/mistral/chat/completions` | Mistral-Large-3 | `Model.General.Invoke` |
+
+App roles are assigned to security groups (`AIG-Coding-Assistants`,
+`AIG-General-LLM`) for interactive developers and directly to service principals
+for workloads. Each API also **forces its model server-side**, so a coding-scoped
+caller cannot reach a general model by editing the request body.
+
+`direct-access/demos/access_matrix.py` acquires one token and calls all three
+APIs, printing an allow/deny matrix — the boundary flips depending on which
+identity you run it as:
+
+```
+Token app roles: Model.Coding.Invoke
+  gpt-5.3-codex  (Coding)     ->  ALLOWED  (returned model: gpt-5.3-codex)
+  gpt-5.2        (General)    ->  DENIED   (403 — missing required app role)
+  Mistral-Large-3 (General)   ->  DENIED   (403 — missing required app role)
+```
+
+**Full walkthrough — the Entra objects, Bicep deployment, `.env`, and the
+service-principal + group demos — is in
+[direct-access/README.md](direct-access/README.md).** A click-by-click portal
+version is in
+[direct-access/docs/portal-setup.md](direct-access/docs/portal-setup.md).
+
 
 ## Key dependencies
 

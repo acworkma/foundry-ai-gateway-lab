@@ -1,0 +1,12 @@
+<!--
+  Reusable backend routing for the Responses-API model API (gpt-5.3-codex).
+  gpt-5.3-codex is served by the Azure OpenAI *Responses* API, not the generic
+  model-inference chat/completions route, so it uses its own backend.
+  - Routes to the Azure OpenAI v1 endpoint (foundry-openai).
+  - Authenticates with the APIM system-assigned managed identity.
+  The v1 path needs no api-version query parameter.
+-->
+<fragment>
+    <set-backend-service backend-id="foundry-openai" />
+    <authentication-managed-identity resource="https://cognitiveservices.azure.com" />
+</fragment>
