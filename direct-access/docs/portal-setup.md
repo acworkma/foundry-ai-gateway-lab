@@ -191,7 +191,17 @@ letting developers self-subscribe.
 
 ## Part C — Test it
 
-Use the [`access_matrix.py`](../demos/access_matrix.py) demo, or test by hand:
+Use the [`access_matrix.py`](../demos/access_matrix.py) demo — flip the persona
+on the command line to switch identities (no `.env` editing):
+
+```bash
+uv run python direct-access/demos/access_matrix.py coding    # Coding Assistants client
+uv run python direct-access/demos/access_matrix.py general    # General LLM client
+uv run python direct-access/demos/access_matrix.py user       # signed-in user (az login)
+```
+
+Allowed calls print the model's actual reply, so you see a real completion — not
+just a status code. Or test by hand:
 
 1. Get a token for the identity:
    - Service principal: client-credentials grant, scope

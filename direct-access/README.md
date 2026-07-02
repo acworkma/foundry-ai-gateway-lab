@@ -130,9 +130,12 @@ DIRECT_RESOURCE_APP_ID=<resource app id>
 DIRECT_TENANT_ID=<tenant id>
 DIRECT_CODING_SUB_KEY=<coding-assistants product subscription key>
 DIRECT_GENERAL_SUB_KEY=<general-llm product subscription key>
-# For the service-principal path (leave unset to use az login / a signed-in user):
-DIRECT_CLIENT_ID=<client app id>
-DIRECT_CLIENT_SECRET=<client secret>
+# For the two service-principal personas (both can live here at once — you flip
+# between them from the command line, no file editing):
+DIRECT_CODING_CLIENT_ID=<coding client app id>
+DIRECT_CODING_CLIENT_SECRET=<coding client secret>
+DIRECT_GENERAL_CLIENT_ID=<general client app id>
+DIRECT_GENERAL_CLIENT_SECRET=<general client secret>
 ```
 
 Retrieve the product subscription keys with:
@@ -144,26 +147,51 @@ az rest --method POST --uri "https://management.azure.com/subscriptions/<sub>/re
 
 ## Run the demo
 
+Pick a **persona** on the command line — no `.env` editing to switch identities:
+
 ```bash
-uv run python direct-access/demos/access_matrix.py
+uv run python direct-access/demos/access_matrix.py coding    # Coding Assistants client
+uv run python direct-access/demos/access_matrix.py general    # General LLM client
+uv run python direct-access/demos/access_matrix.py user       # signed-in user (az login)
 ```
 
-The script acquires one token for the configured identity, prints its app roles,
-then calls all three APIs. Run it as the **Coding** client and the **General**
-client to watch the boundary flip:
+| Argument  | Identity used                                   | Carries role         |
+| --------- | ----------------------------------------------- | -------------------- |
+| `coding`  | `DIRECT_CODING_CLIENT_ID` / `..._SECRET`        | `Model.Coding.Invoke`  |
+| `general` | `DIRECT_GENERAL_CLIENT_ID` / `..._SECRET`       | `Model.General.Invoke` |
+| `user`    | `DefaultAzureCredential` (signed-in dev)        | via group membership   |
+| *(none)*  | legacy `DIRECT_CLIENT_ID`/`SECRET`, else az login | whatever it holds    |
+
+Each run acquires one token, prints the persona and its app roles, then calls
+all three APIs. Allowed calls print the model's **actual reply** so you see a
+real completion — not just a `200`. Flip `coding` → `general` to watch the
+boundary move:
 
 ```
+$ uv run python direct-access/demos/access_matrix.py coding
+Persona:         Coding Assistants
 Token app roles: Model.Coding.Invoke
-  gpt-5.3-codex  (Coding)     ->  ALLOWED  (returned model: gpt-5.3-codex)
-  gpt-5.2        (General)    ->  DENIED   (403 — missing required app role)
-  Mistral-Large-3 (General)   ->  DENIED   (403 — missing required app role)
+Prompt:          In one short sentence, describe what an Azure API Management AI gateway does.
+--------------------------------------------------------------------
+  gpt-5.3-codex  (Coding)     requires Model.Coding.Invoke   ->  ALLOWED
+      model: gpt-5.3-codex
+      reply: An Azure API Management AI gateway is a managed front door that ...
+  gpt-5.2        (General)     requires Model.General.Invoke  ->  DENIED   (403 — missing required app role)
+  Mistral-Large-3 (General)    requires Model.General.Invoke  ->  DENIED   (403 — missing required app role)
 ```
 
 ```
+$ uv run python direct-access/demos/access_matrix.py general
+Persona:         General LLM
 Token app roles: Model.General.Invoke
-  gpt-5.3-codex  (Coding)     ->  DENIED   (403 — missing required app role)
-  gpt-5.2        (General)    ->  ALLOWED  (returned model: gpt-5.2-...)
-  Mistral-Large-3 (General)   ->  ALLOWED  (returned model: mistral-large-3)
+--------------------------------------------------------------------
+  gpt-5.3-codex  (Coding)     requires Model.Coding.Invoke   ->  DENIED   (403 — missing required app role)
+  gpt-5.2        (General)     requires Model.General.Invoke  ->  ALLOWED
+      model: gpt-5.2-...
+      reply: An AI gateway in Azure API Management sits in front of your models ...
+  Mistral-Large-3 (General)    requires Model.General.Invoke  ->  ALLOWED
+      model: mistral-large-3
+      reply: It is a policy layer that governs, secures, and routes calls to ...
 ```
 
 ### Interactive-user (group) path
@@ -172,10 +200,9 @@ A group membership can't be minted non-interactively, so validate it with a
 signed-in developer instead of a service principal:
 
 1. Add a test user to `AIG-Coding-Assistants` (or `AIG-General-LLM`).
-2. Leave `DIRECT_CLIENT_ID` / `DIRECT_CLIENT_SECRET` **unset** so the demo uses
-   `DefaultAzureCredential` (e.g. `az login` as that user).
-3. Run `access_matrix.py` — the user's token carries the group's app role via
-   `roles`, and the same allow/deny boundary applies.
+2. `az login` as that user.
+3. Run `access_matrix.py user` — the user's token carries the group's app role
+   via `roles`, and the same allow/deny boundary (and real replies) applies.
 
 ## Files
 

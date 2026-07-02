@@ -88,15 +88,20 @@ App roles are assigned to security groups (`AIG-Coding-Assistants`,
 for workloads. Each API also **forces its model server-side**, so a coding-scoped
 caller cannot reach a general model by editing the request body.
 
-`direct-access/demos/access_matrix.py` acquires one token and calls all three
-APIs, printing an allow/deny matrix — the boundary flips depending on which
-identity you run it as:
+`direct-access/demos/access_matrix.py` takes a **persona** argument (`coding`,
+`general`, or `user`) so you flip identities from the command line. It acquires
+one token, calls all three APIs, and prints an allow/deny matrix — allowed calls
+show the model's real reply. The boundary flips with the persona:
 
 ```
+$ uv run python direct-access/demos/access_matrix.py coding
+Persona:         Coding Assistants
 Token app roles: Model.Coding.Invoke
-  gpt-5.3-codex  (Coding)     ->  ALLOWED  (returned model: gpt-5.3-codex)
-  gpt-5.2        (General)    ->  DENIED   (403 — missing required app role)
-  Mistral-Large-3 (General)   ->  DENIED   (403 — missing required app role)
+  gpt-5.3-codex  (Coding)     requires Model.Coding.Invoke   ->  ALLOWED
+      model: gpt-5.3-codex
+      reply: An Azure API Management AI gateway is a managed front door that ...
+  gpt-5.2        (General)     requires Model.General.Invoke  ->  DENIED   (403 — missing required app role)
+  Mistral-Large-3 (General)    requires Model.General.Invoke  ->  DENIED   (403 — missing required app role)
 ```
 
 **Full walkthrough — the Entra objects, Bicep deployment, `.env`, and the
