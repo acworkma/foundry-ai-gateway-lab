@@ -194,11 +194,3 @@ direct-access/
     _client.py                    # token acquisition + gateway call helpers
     access_matrix.py              # allow/deny matrix for the current identity
 ```
-
-## Relationship to the AI Gateway Lab
-
-This lab is independent of the storyteller [`gateway/`](../gateway/README.md)
-lab and does not modify it. The gateway lab shows the AI-gateway *policy*
-capabilities (token limits, metrics, caching, content safety) behind an agent
-workload; this lab shows *identity-based access control* to raw models. They can
-coexist on the same `aig-acw` instance.
