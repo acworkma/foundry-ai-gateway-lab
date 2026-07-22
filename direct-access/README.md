@@ -100,7 +100,9 @@ az rest --method POST \
 For a workload (service-principal) test client, create a client app + secret +
 SP and assign it the relevant app role the same way (principalId = the client
 SP's object id). The click-by-click portal equivalent is in
-[docs/portal-setup.md](docs/portal-setup.md).
+[docs/portal-setup.md](docs/portal-setup.md). For a focused tour of just the
+gpt-5.3-codex API (including where the managed-identity backend auth lives), see
+[docs/portal-codex-walkthrough.md](docs/portal-codex-walkthrough.md).
 
 ## Deploy the gateway config (Bicep)
 
@@ -210,6 +212,7 @@ signed-in developer instead of a service principal:
 direct-access/
   README.md                       # this file
   docs/portal-setup.md            # click-by-click portal walkthrough
+  docs/portal-codex-walkthrough.md # focused portal tour of the gpt-5.3-codex API
   infra/main.bicep                # backends, APIs, products, subscriptions
   policies/
     backend-fragment.xml          # chat/completions backend (gpt-5.2, Mistral) + MI auth

@@ -37,7 +37,20 @@ Swap in your own names where you follow along.
 
 ## Part A — Entra ID: the identity boundary
 
+> **Why this part:** everything downstream keys off an **Entra-issued token**.
+> Part A builds the identity primitives — a resource app to be the token
+> *audience*, app *roles* to express entitlements, and *groups/service
+> principals* to hold them — so that "who may call which model" becomes a claim
+> in a token rather than a network rule or a shared secret.
+
 ### A1. Create the resource app (token audience)
+
+> **Why:** this registration represents *the model API itself* as a protected
+> resource in Entra. `Expose an API → api://<appId>` defines the **audience**
+> APIM validates and the identifier clients request tokens for. It also owns the
+> app roles (A2). Without it there is nothing to validate a token *against* and
+> no place to declare roles — a token minted for another API couldn't be
+> distinguished from a valid one.
 
 1. **Microsoft Entra ID** → **App registrations** → **New registration**.
 2. Name: `AIG Direct Model Access`. Supported account types: **Single tenant**.
@@ -48,6 +61,11 @@ Swap in your own names where you follow along.
    `api://<appId>` → **Save**. (This is the `audience` the gateway validates.)
 
 ### A2. Define the two app roles
+
+> **Why:** the role *values* (`Model.Coding.Invoke`, `Model.General.Invoke`) are
+> exactly what land in the token's `roles` claim and what each API policy
+> requires. Defining two separate roles is what lets one gateway grant coding
+> access without granting general-model access.
 
 1. Still on the app → **App roles** → **Create app role**.
 2. First role:
@@ -67,6 +85,10 @@ Swap in your own names where you follow along.
 
 ### A3. Create the enterprise app (service principal)
 
+> **Why:** the app *registration* is just the definition; role assignments attach
+> to its **service principal** (the enterprise app) in this tenant. No service
+> principal means nowhere to assign the groups/clients in A5–A6.
+
 Creating the app registration doesn't automatically create its service
 principal. **Enterprise applications** → **New application** →
 **Create your own application** is the portal path, but the simplest is: after
@@ -76,12 +98,21 @@ first time a role is assigned in the next step.
 
 ### A4. Create security groups
 
+> **Why:** groups let you manage entitlements by *membership* instead of
+> per-user role grants. Add/remove a developer from `AIG-Coding-Assistants` and
+> their coding access follows automatically — no policy or APIM change.
+
 1. **Microsoft Entra ID** → **Groups** → **New group**.
 2. Type **Security**, name `AIG-Coding-Assistants`. **Create**.
 3. Repeat for `AIG-General-LLM`.
 4. Add the developers who should hold each entitlement as **Members**.
 
 ### A5. Assign app roles to the groups
+
+> **Why:** this is the actual grant. Until a group is assigned a role on the
+> resource app, its members' tokens carry *no* `roles` claim and every call gets
+> **403**. This step is what turns "member of a group" into "gets `Model.*.Invoke`
+> in the token."
 
 1. **Enterprise applications** → open **AIG Direct Model Access** →
    **Users and groups** → **Add user/group**.
@@ -93,6 +124,10 @@ Now every member of a group receives that app role in their token's `roles`
 claim when they request a token for `api://<appId>`.
 
 ### A6. (Optional) A workload / service-principal client
+
+> **Why:** proves the *non-interactive* path — a CI job or service calling the
+> gateway with client credentials, no human sign-in. Same role check applies, so
+> it shows the model works for automation, not just users.
 
 To demo the non-interactive path:
 
@@ -109,7 +144,18 @@ credentials) and receives `roles: ["Model.Coding.Invoke"]`.
 
 ## Part B — API Management: the APIs, products, and policies
 
+> **Why this part:** Part A produced tokens; Part B is the **gateway that
+> enforces them** and reaches Foundry. It defines where to route
+> (backends), the values policies need (named values), the per-model APIs and
+> their enforcement (policies), and how access is packaged and metered (products
+> + subscriptions).
+
 ### B1. Backends
+
+> **Why:** a backend is the *target* APIM forwards to, reached over the APIM
+> **managed identity** (account keys are off on Foundry). Two backends because
+> chat/completions models and the codex Responses API sit on different Foundry
+> endpoints.
 
 1. **API Management** → `aig-acw` → **Backends** → **+ Add**.
 2. Backend `foundry-models`: type **Custom URL**, runtime URL
@@ -123,6 +169,10 @@ hold **Cognitive Services User** on `foundry-acw` (Foundry account →
 
 ### B2. Named values
 
+> **Why:** policies reference `{{aad-tenant-id}}` and `{{model-audience}}`
+> instead of hardcoding them. Central named values keep the tenant/audience in
+> one place, so all three policies stay consistent and are easy to update.
+
 **APIs** area → **Named values** → **+ Add** two values the policies reference:
 
 | Name | Value |
@@ -131,6 +181,11 @@ hold **Cognitive Services User** on `foundry-acw` (Foundry account →
 | `model-audience` | `api://<appId>` |
 
 ### B3. Create each API (HTTP)
+
+> **Why:** each model gets its own API + path so access is scoped per model.
+> Separate APIs are what let a product/role grant one model without the others,
+> and give each its own operation shape (codex = `/responses`, the rest =
+> `/chat/completions`).
 
 For **each** of the three models, **APIs** → **+ Add API** → **HTTP**:
 
@@ -144,6 +199,10 @@ After creating each API, open it → **Design** → **+ Add operation** and add 
 operation from the table (method + URL template).
 
 ### B4. Inbound policy per API
+
+> **Why:** this is where enforcement actually happens — the token/role check, the
+> managed-identity call to Foundry, and pinning the model server-side. Applied at
+> **All operations** (API scope) so it covers the whole API, not one operation.
 
 Open an API → **Design** → select **All operations** → **Inbound processing** →
 `</>` (code editor). This is the API-scoped policy (the "All operations" view —
@@ -169,6 +228,10 @@ The two backend fragments (`direct-models-backend`,
 
 ### B5. Products (access bundles)
 
+> **Why:** products group APIs into shippable bundles and require a subscription
+> key, giving a second, coarse gate (key) layered on top of the Entra role gate.
+> Two products mirror the two entitlements: coding vs. general.
+
 **Products** → **+ Add**:
 
 1. `Coding Assistants` — Requires subscription **on**, Requires approval **off**,
@@ -176,6 +239,10 @@ The two backend fragments (`direct-models-backend`,
 2. `General LLM` — same settings. Add APIs `model-gpt52` and `model-mistral`.
 
 ### B6. Subscriptions (admin-provisioned keys)
+
+> **Why:** a subscription is what mints the actual **subscription keys** callers
+> send. Because there's no developer portal, you provision these centrally so
+> keys are issued and tracked by admins rather than self-service.
 
 **Subscriptions** → **+ Add subscription**:
 
@@ -190,6 +257,10 @@ letting developers self-subscribe.
 ---
 
 ## Part C — Test it
+
+> **Why this part:** proves the boundary actually holds — that each identity can
+> reach only its allowed model and everything else returns 403 — with a real
+> model reply, not just a status code.
 
 Use the [`access_matrix.py`](../demos/access_matrix.py) demo — flip the persona
 on the command line to switch identities (no `.env` editing):
